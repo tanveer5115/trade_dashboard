@@ -1,0 +1,22 @@
+{
+  "name": "Trade Intelligence",
+  "short_name": "Trade Intel",
+  "description": "Trade Operations Dashboard",
+  "start_url": "/trade_dashboard/",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Chart%20increasing/3D/chart_increasing_3d.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Chart%20increasing/3D/chart_increasing_3d.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
