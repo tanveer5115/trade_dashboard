@@ -1,0 +1,1062 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Trade Intel">
+<meta name="theme-color" content="#0d1117">
+<title>Trade Intelligence</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ── RESET & BASE ─────────────────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+  background:#0d1117;color:#e2e8f0;display:flex;flex-direction:column}
+
+/* ── HEADER ──────────────────────────────────────────────────────────────── */
+.header{background:#161b22;border-bottom:1px solid #21262d;
+  padding:12px 16px;display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;z-index:100}
+.header-left h1{font-size:1rem;font-weight:800;color:#f0f6fc;letter-spacing:-.2px}
+.header-left p{font-size:0.65rem;color:#8b949e;margin-top:1px}
+.header-right{display:flex;align-items:center;gap:8px}
+.sync-btn{background:none;border:1px solid #30363d;color:#8b949e;
+  padding:5px 10px;border-radius:6px;font-size:0.65rem;cursor:pointer;
+  display:flex;align-items:center;gap:4px;transition:all .2s}
+.sync-btn:hover{border-color:#58a6ff;color:#58a6ff}
+.sync-btn.syncing{color:#3fb950;border-color:#3fb950;animation:pulse 1s infinite}
+.status-dot{width:6px;height:6px;border-radius:50%;background:#3fb950;display:inline-block}
+.status-dot.offline{background:#f85149}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── NAV TABS (bottom on mobile) ─────────────────────────────────────────── */
+.bottom-nav{
+  position:fixed;bottom:0;left:0;right:0;
+  background:#161b22;border-top:1px solid #21262d;
+  display:flex;z-index:200;padding-bottom:env(safe-area-inset-bottom)}
+.nav-tab{flex:1;padding:10px 4px 8px;border:none;background:none;
+  color:#8b949e;cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;gap:3px;font-size:0.58rem;font-weight:600;
+  text-transform:uppercase;letter-spacing:.4px;transition:color .2s}
+.nav-tab.active{color:#58a6ff}
+.nav-tab svg{width:20px;height:20px;stroke-width:1.8}
+
+/* ── MAIN SCROLL AREA ────────────────────────────────────────────────────── */
+.main{flex:1;overflow-y:auto;overflow-x:hidden;
+  padding:12px 12px 80px;
+  -webkit-overflow-scrolling:touch}
+
+/* ── PAGES ───────────────────────────────────────────────────────────────── */
+.page{display:none}
+.page.active{display:block}
+
+/* ── LOADING ─────────────────────────────────────────────────────────────── */
+.loading-overlay{
+  position:fixed;inset:0;background:#0d1117;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:999}
+.spinner{width:36px;height:36px;border:3px solid #21262d;
+  border-top-color:#58a6ff;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:0.8rem;color:#8b949e}
+.loading-sub{font-size:0.7rem;color:#30363d;margin-top:4px}
+
+/* ── ERROR BANNER ────────────────────────────────────────────────────────── */
+.error-banner{background:#2d1111;border:1px solid #f85149;border-radius:8px;
+  padding:10px 14px;margin-bottom:12px;font-size:0.75rem;color:#f85149;display:none}
+
+/* ── CONFIG NOTICE ───────────────────────────────────────────────────────── */
+.config-notice{background:#0d2137;border:1px solid #1f6feb;border-radius:10px;
+  padding:16px;margin-bottom:14px}
+.config-notice h3{font-size:0.82rem;color:#58a6ff;font-weight:700;margin-bottom:8px}
+.config-notice p{font-size:0.72rem;color:#8b949e;line-height:1.6;margin-bottom:6px}
+.config-notice code{background:#21262d;color:#f85149;padding:2px 6px;
+  border-radius:4px;font-size:0.68rem;font-family:monospace}
+.config-notice .step{display:flex;gap:8px;margin-bottom:6px}
+.config-notice .step-num{background:#1f6feb;color:#fff;width:18px;height:18px;
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:0.65rem;font-weight:800;flex-shrink:0;margin-top:1px}
+
+/* ── KPI CARDS ───────────────────────────────────────────────────────────── */
+.kpi-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none}
+.kpi-scroll::-webkit-scrollbar{display:none}
+.kpi-card{background:#161b22;border:1px solid #21262d;border-radius:10px;
+  padding:14px;min-width:140px;flex-shrink:0;position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--ac,#58a6ff);border-radius:10px 10px 0 0}
+.kpi-label{font-size:0.62rem;text-transform:uppercase;letter-spacing:.5px;
+  color:#8b949e;font-weight:700}
+.kpi-val{font-size:1.4rem;font-weight:800;color:#f0f6fc;margin:4px 0 2px;line-height:1}
+.kpi-sub{font-size:0.62rem;color:#8b949e}
+.kpi-change{font-size:0.68rem;font-weight:700;margin-top:5px}
+.up{color:#3fb950}.down{color:#f85149}.neu{color:#8b949e}
+
+/* ── SECTION TITLE ───────────────────────────────────────────────────────── */
+.sec-title{font-size:0.68rem;text-transform:uppercase;letter-spacing:.6px;
+  color:#8b949e;font-weight:700;margin:16px 0 8px}
+
+/* ── CARD ────────────────────────────────────────────────────────────────── */
+.card{background:#161b22;border:1px solid #21262d;border-radius:10px;
+  padding:14px;margin-bottom:10px}
+.card-title{font-size:0.72rem;text-transform:uppercase;letter-spacing:.4px;
+  color:#8b949e;font-weight:700;margin-bottom:10px}
+
+/* ── PRODUCT BUTTONS ─────────────────────────────────────────────────────── */
+.prod-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.prod-scroll::-webkit-scrollbar{display:none}
+.prod-btn{padding:7px 12px;border:1px solid #30363d;border-radius:20px;
+  background:#21262d;color:#c9d1d9;font-size:0.72rem;cursor:pointer;
+  white-space:nowrap;font-weight:500;transition:all .15s;flex-shrink:0}
+.prod-btn.active{background:#1f3a5f;border-color:#58a6ff;color:#58a6ff;font-weight:700}
+
+/* ── MODE PILLS ──────────────────────────────────────────────────────────── */
+.mode-pills{display:flex;gap:5px;margin-bottom:12px}
+.mode-pill{flex:1;padding:8px 4px;border-radius:8px;border:1px solid #30363d;
+  background:#21262d;color:#8b949e;font-size:0.65rem;cursor:pointer;
+  text-align:center;font-weight:700;transition:all .15s;text-transform:uppercase;letter-spacing:.3px}
+.mode-pill.active{background:#0d2137;border-color:#388bfd;color:#58a6ff}
+
+/* ── SELECTS ─────────────────────────────────────────────────────────────── */
+.select-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+select{width:100%;background:#21262d;border:1px solid #30363d;color:#c9d1d9;
+  padding:9px 10px;border-radius:8px;font-size:0.78rem;cursor:pointer;
+  -webkit-appearance:none;appearance:none}
+select:focus{outline:none;border-color:#58a6ff}
+
+/* ── GROWTH TOGGLE ───────────────────────────────────────────────────────── */
+.growth-row{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.g-btn{padding:6px 10px;border:1px solid #30363d;border-radius:6px;
+  background:#21262d;color:#c9d1d9;font-size:0.68rem;cursor:pointer;font-weight:600;
+  transition:all .15s}
+.g-btn.active{background:#1f3a5f;border-color:#58a6ff;color:#58a6ff}
+
+/* ── RUN BUTTON ──────────────────────────────────────────────────────────── */
+.run-btn{width:100%;padding:12px;background:#1f6feb;border:none;color:#fff;
+  border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;
+  margin-top:10px;transition:background .15s;letter-spacing:.3px}
+.run-btn:hover{background:#388bfd}
+.run-btn:active{background:#1158c7;transform:scale(.98)}
+
+/* ── RESULT SECTION ──────────────────────────────────────────────────────── */
+.result-area{margin-top:12px}
+.result-card{background:#161b22;border:1px solid #21262d;border-radius:10px;
+  padding:14px;margin-bottom:10px}
+.result-card.hl{border-color:#388bfd;background:#0a1929}
+.result-header{margin-bottom:12px}
+.result-prod{font-size:0.62rem;text-transform:uppercase;letter-spacing:.5px;color:#8b949e;font-weight:700}
+.result-period{font-size:1.05rem;font-weight:800;color:#f0f6fc;margin-top:2px}
+
+/* ── METRIC MINI GRID ────────────────────────────────────────────────────── */
+.mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.mini-box{background:#21262d;border-radius:8px;padding:10px;
+  border-left:2px solid var(--ac,#58a6ff)}
+.mini-name{font-size:0.6rem;text-transform:uppercase;letter-spacing:.3px;color:#8b949e;font-weight:700}
+.mini-val{font-size:1.15rem;font-weight:800;color:#f0f6fc;margin:3px 0 1px;line-height:1}
+.mini-unit{font-size:0.6rem;color:#8b949e}
+.mini-chg{font-size:0.65rem;font-weight:700;margin-top:4px}
+
+/* ── GROWTH BADGES ───────────────────────────────────────────────────────── */
+.growth-badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.gbadge{background:#21262d;border-radius:8px;padding:8px 10px;flex:1;min-width:120px}
+.gbadge-label{font-size:0.58rem;text-transform:uppercase;letter-spacing:.4px;color:#8b949e;font-weight:700;margin-bottom:4px}
+.gbadge-vals{font-size:0.72rem;font-weight:700}
+
+/* ── TABLE ───────────────────────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:0.72rem}
+th{background:#21262d;color:#8b949e;padding:7px 10px;text-align:right;
+  font-size:0.62rem;text-transform:uppercase;letter-spacing:.3px;font-weight:700;
+  border-bottom:1px solid #30363d;white-space:nowrap}
+th:first-child{text-align:left}
+td{padding:7px 10px;border-bottom:1px solid #1c2128;text-align:right;
+  color:#c9d1d9;white-space:nowrap}
+td:first-child{text-align:left;color:#e6edf3;font-weight:600}
+tr:last-child td{border-bottom:none}
+
+/* ── PILL ────────────────────────────────────────────────────────────────── */
+.pill{display:inline-block;padding:1px 6px;border-radius:10px;font-size:0.62rem;font-weight:700}
+.pill-up{background:#0f2e1a;color:#3fb950}
+.pill-down{background:#2d1111;color:#f85149}
+.pill-n{background:#1f3a5f;color:#58a6ff}
+
+/* ── CHART ───────────────────────────────────────────────────────────────── */
+.chart-wrap{background:#21262d;border-radius:8px;padding:12px;margin-top:8px}
+canvas{max-height:200px}
+
+/* ── PRESET BUTTONS ──────────────────────────────────────────────────────── */
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.preset-card{background:#161b22;border:1px solid #21262d;border-radius:10px;
+  padding:12px;cursor:pointer;transition:all .15s;text-align:left}
+.preset-card:hover,.preset-card:active{border-color:#58a6ff;background:#0d2137}
+.preset-icon{font-size:1.3rem;margin-bottom:6px}
+.preset-name{font-size:0.72rem;font-weight:700;color:#e6edf3;margin-bottom:2px}
+.preset-desc{font-size:0.62rem;color:#8b949e;line-height:1.4}
+
+/* ── OVERVIEW ROWS ───────────────────────────────────────────────────────── */
+.overview-row{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 0;border-bottom:1px solid #21262d}
+.overview-row:last-child{border-bottom:none}
+.ov-left{display:flex;align-items:center;gap:10px}
+.ov-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ov-name{font-size:0.78rem;font-weight:600;color:#e6edf3}
+.ov-sub{font-size:0.62rem;color:#8b949e;margin-top:1px}
+.ov-right{text-align:right}
+.ov-val{font-size:0.9rem;font-weight:800;color:#f0f6fc}
+.ov-chg{font-size:0.65rem;font-weight:700;margin-top:1px}
+
+/* ── SETTINGS ────────────────────────────────────────────────────────────── */
+.setting-item{display:flex;align-items:flex-start;justify-content:space-between;
+  padding:12px 0;border-bottom:1px solid #21262d}
+.setting-item:last-child{border-bottom:none}
+.setting-label{font-size:0.8rem;font-weight:600;color:#e6edf3}
+.setting-desc{font-size:0.65rem;color:#8b949e;margin-top:2px;max-width:200px;line-height:1.4}
+.setting-input{background:#21262d;border:1px solid #30363d;color:#c9d1d9;
+  padding:7px 10px;border-radius:6px;font-size:0.72rem;width:160px}
+.setting-input:focus{outline:none;border-color:#58a6ff}
+.save-btn{width:100%;padding:11px;background:#238636;border:none;color:#fff;
+  border-radius:8px;font-size:0.82rem;font-weight:700;cursor:pointer;margin-top:14px}
+.save-btn:active{transform:scale(.98)}
+
+/* ── EMPTY STATE ─────────────────────────────────────────────────────────── */
+.empty{text-align:center;padding:40px 20px;color:#8b949e}
+.empty-icon{font-size:2.2rem;margin-bottom:10px;opacity:.4}
+.empty-text{font-size:0.8rem}
+.empty-hint{font-size:0.68rem;margin-top:4px;opacity:.6}
+
+/* ── DESKTOP ADJUSTMENTS ─────────────────────────────────────────────────── */
+@media(min-width:768px){
+  .bottom-nav{position:fixed;bottom:0}
+  .main{max-width:900px;margin:0 auto;padding:20px 20px 90px}
+  .kpi-card{min-width:160px}
+  .mini-grid{grid-template-columns:repeat(4,1fr)}
+  .preset-grid{grid-template-columns:repeat(4,1fr)}
+  .select-row{grid-template-columns:1fr 1fr 1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">Loading Trade Data</div>
+  <div class="loading-sub" id="load-sub">Connecting to data source...</div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <h1>Trade Intelligence</h1>
+    <p id="data-period">Jan 2024 – Mar 2026</p>
+  </div>
+  <div class="header-right">
+    <span class="status-dot" id="status-dot"></span>
+    <button class="sync-btn" id="sync-btn" onclick="syncData()">
+      <span>↻</span> Sync
+    </button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main" id="main">
+
+  <!-- PAGE: OVERVIEW -->
+  <div class="page active" id="page-overview">
+    <div class="error-banner" id="error-banner"></div>
+
+    <div class="config-notice" id="config-notice" style="display:none">
+      <h3>⚙️ Connect Your Google Sheet</h3>
+      <p>Go to <b>Settings</b> tab and paste your Google Sheet URL to load live data.</p>
+      <p>Currently showing: <code>sample data</code></p>
+    </div>
+
+    <div class="sec-title">Latest Month — <span id="latest-label">Mar 2026</span></div>
+
+    <div class="kpi-scroll" id="kpi-row"></div>
+
+    <div class="sec-title">All Segments</div>
+    <div class="card" id="overview-card">
+      <div class="card-title">Transaction + Value Summary</div>
+      <div id="overview-rows"></div>
+    </div>
+
+    <div class="sec-title">Trend — Import Value (USD Mn)</div>
+    <div class="chart-wrap">
+      <canvas id="trend-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- PAGE: QUERY -->
+  <div class="page" id="page-query">
+    <div class="sec-title">Product</div>
+    <div class="prod-scroll" id="prod-scroll"></div>
+
+    <div class="sec-title" style="margin-top:14px">Mode</div>
+    <div class="mode-pills">
+      <div class="mode-pill active" data-mode="point" onclick="setMode('point',this)">Single</div>
+      <div class="mode-pill" data-mode="compare" onclick="setMode('compare',this)">Compare</div>
+      <div class="mode-pill" data-mode="range" onclick="setMode('range',this)">Range</div>
+    </div>
+
+    <!-- Single -->
+    <div id="q-single">
+      <div class="select-row">
+        <select id="q-year"></select>
+        <select id="q-month"></select>
+      </div>
+      <div style="font-size:0.65rem;color:#8b949e;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Growth vs</div>
+      <div class="growth-row" id="growth-row">
+        <button class="g-btn active" data-g="none" onclick="setGrowth('none',this)">None</button>
+        <button class="g-btn" data-g="mom" onclick="setGrowth('mom',this)">Prev Month</button>
+        <button class="g-btn" data-g="yoy" onclick="setGrowth('yoy',this)">Same Mo. Last Yr</button>
+        <button class="g-btn" data-g="both" onclick="setGrowth('both',this)">Both</button>
+      </div>
+    </div>
+
+    <!-- Compare -->
+    <div id="q-compare" style="display:none">
+      <div style="font-size:0.65rem;color:#8b949e;font-weight:700;margin-bottom:6px;text-transform:uppercase">Period A</div>
+      <div class="select-row">
+        <select id="ca-year"></select>
+        <select id="ca-month"></select>
+      </div>
+      <div style="font-size:0.65rem;color:#8b949e;font-weight:700;margin-bottom:6px;text-transform:uppercase">Period B</div>
+      <div class="select-row">
+        <select id="cb-year"></select>
+        <select id="cb-month"></select>
+      </div>
+    </div>
+
+    <!-- Range -->
+    <div id="q-range" style="display:none">
+      <div style="font-size:0.65rem;color:#8b949e;font-weight:700;margin-bottom:6px;text-transform:uppercase">From</div>
+      <div class="select-row">
+        <select id="ra-year"></select>
+        <select id="ra-month"></select>
+      </div>
+      <div style="font-size:0.65rem;color:#8b949e;font-weight:700;margin-bottom:6px;text-transform:uppercase">To</div>
+      <div class="select-row">
+        <select id="rb-year"></select>
+        <select id="rb-month"></select>
+      </div>
+    </div>
+
+    <button class="run-btn" onclick="runQuery()">Run Query</button>
+
+    <div class="result-area" id="result-area">
+      <div class="empty">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-text">Select product + period then Run</div>
+        <div class="empty-hint">Or try a Quick Preset below</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: PRESETS -->
+  <div class="page" id="page-presets">
+    <div class="sec-title">Quick Answers</div>
+    <div class="preset-grid" id="preset-grid"></div>
+  </div>
+
+  <!-- PAGE: SETTINGS -->
+  <div class="page" id="page-settings">
+    <div class="sec-title">Data Source</div>
+    <div class="card">
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">Google Sheet ID</div>
+          <div class="setting-desc">Paste the ID from your published Google Sheet URL</div>
+        </div>
+        <input class="setting-input" id="sheet-id-input" placeholder="1BxiMV...">
+      </div>
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">Auto Refresh</div>
+          <div class="setting-desc">Fetch latest data every time the app loads</div>
+        </div>
+        <select style="width:100px;background:#21262d;border:1px solid #30363d;color:#c9d1d9;padding:7px;border-radius:6px;font-size:0.72rem" id="auto-refresh">
+          <option value="1">On</option>
+          <option value="0">Off</option>
+        </select>
+      </div>
+      <button class="save-btn" onclick="saveSettings()">Save & Connect</button>
+    </div>
+
+    <div class="sec-title">How to Connect Google Sheet</div>
+    <div class="card">
+      <div style="font-size:0.72rem;color:#c9d1d9;line-height:1.8">
+        <div style="margin-bottom:8px"><b style="color:#58a6ff">Step 1.</b> Open your Google Sheet with the trade data</div>
+        <div style="margin-bottom:8px"><b style="color:#58a6ff">Step 2.</b> Go to <b>File → Share → Publish to web</b></div>
+        <div style="margin-bottom:8px"><b style="color:#58a6ff">Step 3.</b> Select each sheet tab, choose <b>CSV format</b>, click Publish</div>
+        <div style="margin-bottom:8px"><b style="color:#58a6ff">Step 4.</b> Copy the Sheet ID from the URL bar — it looks like:<br>
+          <code style="background:#21262d;color:#f85149;padding:2px 6px;border-radius:4px;font-size:0.65rem;font-family:monospace">docs.google.com/spreadsheets/d/<b>THIS-PART</b>/edit</code></div>
+        <div style="margin-bottom:8px"><b style="color:#58a6ff">Step 5.</b> Paste that ID above and click Save & Connect</div>
+        <div style="color:#8b949e;font-size:0.65rem;margin-top:8px">The sheet must have 3 tabs named exactly: <b>Import</b>, <b>Export</b>, <b>Bank Guarantee</b></div>
+      </div>
+    </div>
+
+    <div class="sec-title">App Info</div>
+    <div class="card">
+      <div class="overview-row">
+        <div class="ov-left"><div class="ov-name">Records Loaded</div></div>
+        <div class="ov-val" id="info-records">27</div>
+      </div>
+      <div class="overview-row">
+        <div class="ov-left"><div class="ov-name">Last Synced</div></div>
+        <div class="ov-val" id="info-sync">—</div>
+      </div>
+      <div class="overview-row">
+        <div class="ov-left"><div class="ov-name">Data Source</div></div>
+        <div class="ov-val" id="info-source" style="font-size:0.7rem">Built-in</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-tab active" onclick="showPage('overview',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Overview
+  </button>
+  <button class="nav-tab" onclick="showPage('query',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    Query
+  </button>
+  <button class="nav-tab" onclick="showPage('presets',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+    Presets
+  </button>
+  <button class="nav-tab" onclick="showPage('settings',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Settings
+  </button>
+</nav>
+
+<script>
+// ─── BUILT-IN DATA (fallback) ────────────────────────────────────────────────
+const BUILTIN_IMPORT = [
+  [2024,'JANUARY',23,1976,65.93,658,80.36,684,13.28,686,6.09],
+  [2024,'FEBRUARY',21,1473,45.15,518,65.72,452,11.18,508,6.52],
+  [2024,'MARCH',19,1947,70.85,688,89.91,645,16.00,636,5.58],
+  [2024,'APRIL',20,1479,50.24,688,98.27,553,15.51,631,3.94],
+  [2024,'MAY',20,1854,54.18,717,106.99,698,16.83,627,7.08],
+  [2024,'JUNE',17,1404,50.13,608,71.74,469,8.35,508,4.28],
+  [2024,'JULY',21,1602,60.60,528,82.92,514,15.56,511,3.23],
+  [2024,'AUGUST',19,1807,58.24,536,96.38,626,18.03,577,3.62],
+  [2024,'SEPTEMBER',21,1853,67.65,613,118.85,689,17.00,806,7.12],
+  [2024,'OCTOBER',22,1851,59.00,743,99.80,776,15.63,651,7.17],
+  [2024,'NOVEMBER',20,1874,62.19,651,99.65,653,12.44,530,4.55],
+  [2024,'DECEMBER',20,1875,75.98,866,131.22,696,15.90,672,51.87],
+  [2025,'JANUARY',22,2042,62.11,759,121.85,664,14.29,700,11.40],
+  [2025,'FEBRUARY',20,1700,51.17,784,153.44,527,13.27,512,4.15],
+  [2025,'MARCH',19,1999,65.97,790,142.37,696,20.14,653,10.05],
+  [2025,'APRIL',19,1464,49.87,732,113.87,615,13.00,653,7.69],
+  [2025,'MAY',19,1965,61.47,750,134.03,633,14.00,780,9.53],
+  [2025,'JUNE',18,1347,49.01,581,88.22,480,9.75,557,28.06],
+  [2025,'JULY',20,2224,69.00,795,113.00,621,12.00,959,29.71],
+  [2025,'AUGUST',21,1826,52.91,619,99.78,624,13.75,921,52.07],
+  [2025,'SEPTEMBER',22,1904,59.00,710,135.00,778,19.13,1044,17.73],
+  [2025,'OCTOBER',20,1688,56.00,766,136.00,662,11.73,926,50.24],
+  [2025,'NOVEMBER',21,1770,43.24,903,216.00,694,14.20,797,15.44],
+  [2025,'DECEMBER',20,1737,56.45,781,103.50,672,12.60,436,43.67],
+  [2026,'JANUARY',21,2125,77.17,848,140.30,626,16.84,1007,12.76],
+  [2026,'FEBRUARY',19,1667,60.00,721,139.65,530,13.00,667,10.24],
+  [2026,'MARCH',18,1816,53.00,813,154.00,638,36.00,861,17.00],
+];
+const BUILTIN_EXPORT = [
+  [2024,'JANUARY',23,2079,121.48,1241,44.37],
+  [2024,'FEBRUARY',21,1863,104.32,1016,36.30],
+  [2024,'MARCH',19,1988,120.71,1172,43.17],
+  [2024,'APRIL',20,1706,100.01,923,36.38],
+  [2024,'MAY',20,2083,126.00,1274,48.00],
+  [2024,'JUNE',17,1805,121.00,1009,42.14],
+  [2024,'JULY',21,1675,116.00,1074,38.00],
+  [2024,'AUGUST',19,1703,101.40,1237,47.00],
+  [2024,'SEPTEMBER',21,2296,139.51,1498,51.81],
+  [2024,'OCTOBER',22,2269,123.59,1355,50.28],
+  [2024,'NOVEMBER',20,2035,130.00,1298,49.46],
+  [2024,'DECEMBER',20,2164,126.83,1306,49.00],
+  [2025,'JANUARY',22,2034,128.59,1484,54.80],
+  [2025,'FEBRUARY',20,2106,126.58,1131,43.87],
+  [2025,'MARCH',19,2106,150.27,1287,45.81],
+  [2025,'APRIL',19,1962,126.55,904,33.94],
+  [2025,'MAY',19,1961,126.90,1381,47.79],
+  [2025,'JUNE',18,1840,120.00,992,36.78],
+  [2025,'JULY',20,1951,126.85,1193,47.61],
+  [2025,'AUGUST',21,2213,139.36,1075,40.01],
+  [2025,'SEPTEMBER',22,2223,129.60,1148,38.76],
+  [2025,'OCTOBER',20,1893,117.50,1179,48.37],
+  [2025,'NOVEMBER',21,1951,134.06,1134,42.00],
+  [2025,'DECEMBER',20,2139,132.37,1255,42.55],
+  [2026,'JANUARY',21,1996,125.13,1160,41.00],
+  [2026,'FEBRUARY',19,1748,109.71,1132,39.11],
+  [2026,'MARCH',18,1661,106.00,1219,49.00],
+];
+const BUILTIN_BG = [
+  [2024,'JANUARY',23,105,3.56],[2024,'FEBRUARY',21,78,4.48],
+  [2024,'MARCH',19,83,15.20],[2024,'APRIL',20,104,4.69],
+  [2024,'MAY',20,98,4.40],[2024,'JUNE',17,99,25.22],
+  [2024,'JULY',21,94,5.54],[2024,'AUGUST',19,66,9.40],
+  [2024,'SEPTEMBER',21,66,6.72],[2024,'OCTOBER',22,80,7.17],
+  [2024,'NOVEMBER',20,86,45.22],[2024,'DECEMBER',20,115,26.15],
+  [2025,'JANUARY',22,112,9.81],[2025,'FEBRUARY',20,132,8.60],
+  [2025,'MARCH',19,102,8.43],[2025,'APRIL',19,83,21.29],
+  [2025,'MAY',19,113,5.31],[2025,'JUNE',18,144,63.22],
+  [2025,'JULY',20,120,22.42],[2025,'AUGUST',21,120,11.00],
+  [2025,'SEPTEMBER',22,103,40.79],[2025,'OCTOBER',20,57,2.64],
+  [2025,'NOVEMBER',21,69,124.00],[2025,'DECEMBER',20,66,6.67],
+  [2026,'JANUARY',21,99,4.45],[2026,'FEBRUARY',19,136,12.63],
+  [2026,'MARCH',18,110,53.00],
+];
+
+const MN = ['','JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const MN_FULL = ['','JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+const YEARS = [2024,2025,2026];
+
+// ─── APP STATE ────────────────────────────────────────────────────────────────
+let DATA = { IMPORT: [], EXPORT: [], BG: [] };
+let qState = { mode:'point', product:'import_total', growth:'none' };
+let activeChart = null;
+let sheetId = localStorage.getItem('tradeSheetId') || '17UPu-0GurBgKbPzDUWOifdCpiSNO3HWmfbNE1abx_ws';
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+async function init() {
+  loadBuiltinData();
+  buildUI();
+  await maybeLoadSheet();
+  renderOverview();
+  document.getElementById('loading').style.display = 'none';
+}
+
+function loadBuiltinData() {
+  DATA.IMPORT = BUILTIN_IMPORT.map(r => ({
+    y:r[0],m:MN_FULL.indexOf(r[1]),wd:r[2],
+    btb:r[3],btbv:r[4],cash:r[5],cashv:r[6],
+    amd:r[7],amdv:r[8],tt:r[9],ttv:r[10],
+    total:r[3]+r[5]+r[7]+r[9],
+    usd:r[4]+r[6]+r[8]+r[10]
+  }));
+  DATA.EXPORT = BUILTIN_EXPORT.map(r => ({
+    y:r[0],m:MN_FULL.indexOf(r[1]),wd:r[2],
+    fb:r[3],fusd:r[4],lb:r[5],lusd:r[6],
+    total:r[3]+r[5],usd:r[4]+r[6]
+  }));
+  DATA.BG = BUILTIN_BG.map(r => ({
+    y:r[0],m:MN_FULL.indexOf(r[1]),wd:r[2],n:r[3],usd:r[4]
+  }));
+}
+
+async function maybeLoadSheet() {
+  await fetchSheetData(null);
+}
+
+// ─── GOOGLE SHEETS FETCH ──────────────────────────────────────────────────────
+const SHEET_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRIsMTb9G5UX1dqkGZULJavyf-mCF5UVaM5R2fQEQ9zh1jkxwEZHJOuWrkLj0jeTtKRd6OlrW43q5d-/pub';
+const SHEET_URLS = {
+  Import:           SHEET_BASE + '?gid=1153975890&single=true&output=csv',
+  Export:           SHEET_BASE + '?gid=142517649&single=true&output=csv',
+  'Bank Guarantee': SHEET_BASE + '?gid=659700032&single=true&output=csv',
+};
+
+async function fetchSheetData(id) {
+  const btn = document.getElementById('sync-btn');
+  btn.classList.add('syncing');
+  document.getElementById('load-sub').textContent = 'Fetching from Google Sheets...';
+  try {
+    const results = await Promise.all(Object.values(SHEET_URLS).map(url =>
+      fetch(url).then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
+    ));
+    parseSheetCSV(results[0], results[1], results[2]);
+    document.getElementById('status-dot').classList.remove('offline');
+    document.getElementById('config-notice').style.display = 'none';
+    document.getElementById('info-source').textContent = 'Google Sheets (Live)';
+    document.getElementById('info-sync').textContent = new Date().toLocaleTimeString();
+    localStorage.setItem('tradeLastSync', new Date().toISOString());
+  } catch(e) {
+    showError('Could not load live data. Showing built-in data. Error: ' + e.message);
+    document.getElementById('status-dot').classList.add('offline');
+  }
+  btn.classList.remove('syncing');
+}
+
+function parseSheetCSV(impCSV, expCSV, bgCSV) {
+  function parseCSV(csv) {
+    return csv.split('\n').slice(1).filter(Boolean).map(line => {
+      const cols = line.match(/(".*?"|[^,]+)(?=,|$)/g) || [];
+      return cols.map(c => c.replace(/^"|"$/g,'').trim());
+    }).filter(r => r.length > 2 && r[0] && !isNaN(r[0]));
+  }
+  const irows = parseCSV(impCSV);
+  const erows = parseCSV(expCSV);
+  const brows = parseCSV(bgCSV);
+
+  if (irows.length) {
+    DATA.IMPORT = irows.map(r => {
+      const y=+r[0], mn=MN_FULL.indexOf(r[1].toUpperCase()), wd=+r[2];
+      const btb=+r[3],btbv=+r[4],cash=+r[5],cashv=+r[6],amd=+r[7],amdv=+r[8],tt=+r[9],ttv=+r[10];
+      return {y,m:mn,wd,btb,btbv,cash,cashv,amd,amdv,tt,ttv,total:btb+cash+amd+tt,usd:btbv+cashv+amdv+ttv};
+    });
+  }
+  if (erows.length) {
+    DATA.EXPORT = erows.map(r => {
+      const y=+r[0],mn=MN_FULL.indexOf(r[1].toUpperCase()),wd=+r[2];
+      const fb=+r[3],fusd=+r[4],lb=+r[5],lusd=+r[6];
+      return {y,m:mn,wd,fb,fusd,lb,lusd,total:fb+lb,usd:fusd+lusd};
+    });
+  }
+  if (brows.length) {
+    DATA.BG = brows.map(r => ({y:+r[0],m:MN_FULL.indexOf(r[1].toUpperCase()),wd:+r[2],n:+r[3],usd:+r[4]}));
+  }
+  document.getElementById('info-records').textContent = DATA.IMPORT.length;
+  renderOverview();
+}
+
+// ─── DATA HELPERS ─────────────────────────────────────────────────────────────
+const getRow = (ds,y,m) => ds.find(d=>d.y===+y&&d.m===+m)||null;
+const pct = (a,b) => b ? (a-b)/b*100 : null;
+const fmt = (n,d=1) => n===null||isNaN(n)?'—':n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtI = (n) => n===null||isNaN(n)?'—':Math.round(n).toLocaleString();
+
+function getData(prod, y, m) {
+  const ir = getRow(DATA.IMPORT,y,m);
+  const er = getRow(DATA.EXPORT,y,m);
+  const br = getRow(DATA.BG,y,m);
+  const wd = (ir||er||br)?.wd || 1;
+  if (prod==='import_total') return {count:ir?.total,value:ir?.usd,wd};
+  if (prod==='btb_lc')       return {count:ir?.btb,  value:ir?.btbv,wd};
+  if (prod==='cash_lc')      return {count:ir?.cash, value:ir?.cashv,wd};
+  if (prod==='amendment')    return {count:ir?.amd,  value:ir?.amdv,wd};
+  if (prod==='tt_cad')       return {count:ir?.tt,   value:ir?.ttv,wd};
+  if (prod==='export_total') return {count:er?.total,value:er?.usd,wd};
+  if (prod==='foreign_export')return {count:er?.fb,  value:er?.fusd,wd};
+  if (prod==='local_export') return {count:er?.lb,   value:er?.lusd,wd};
+  if (prod==='bg')           return {count:br?.n,    value:br?.usd,wd};
+  if (prod==='trade_total')  return {
+    count:(ir?.total||0)+(er?.total||0)+(br?.n||0),
+    value:(ir?.usd||0)+(er?.usd||0)+(br?.usd||0),wd
+  };
+  return {count:null,value:null,wd:1};
+}
+
+function prevM(y,m){m=+m;y=+y;return m===1?{y:y-1,m:12}:{y,m:m-1}}
+function prevY(y,m){return{y:+y-1,m:+m}}
+
+function pillHtml(p) {
+  if(p===null) return '<span class="pill pill-n">N/A</span>';
+  return p>=0 ? `<span class="pill pill-up">▲ ${Math.abs(p).toFixed(1)}%</span>`
+              : `<span class="pill pill-down">▼ ${Math.abs(p).toFixed(1)}%</span>`;
+}
+
+function prodLabel(p) {
+  return {import_total:'Import Total',btb_lc:'BTB LC',cash_lc:'Cash LC',
+    amendment:'Amendment',tt_cad:'TT-CAD',export_total:'Export Total',
+    foreign_export:'Foreign Export',local_export:'Local Export',
+    bg:'Bank Guarantee',trade_total:'Total Trade'}[p]||p;
+}
+
+// ─── BUILD UI ─────────────────────────────────────────────────────────────────
+function buildUI() {
+  // Products
+  const prods = [
+    {k:'import_total',l:'Import Total'},{k:'btb_lc',l:'BTB LC'},{k:'cash_lc',l:'Cash LC'},
+    {k:'amendment',l:'Amendment'},{k:'tt_cad',l:'TT-CAD'},{k:'export_total',l:'Export Total'},
+    {k:'foreign_export',l:'Foreign Export'},{k:'local_export',l:'Local Export'},
+    {k:'bg',l:'Bank Guarantee'},{k:'trade_total',l:'Total Trade'},
+  ];
+  document.getElementById('prod-scroll').innerHTML = prods.map(p =>
+    `<button class="prod-btn${p.k==='import_total'?' active':''}" data-prod="${p.k}" onclick="setProd('${p.k}',this)">${p.l}</button>`
+  ).join('');
+
+  // Selects
+  const yOpts = YEARS.map(y=>`<option value="${y}">${y}</option>`).join('');
+  const mOpts = MN.slice(1).map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  ['q-year','ca-year','cb-year','ra-year','rb-year'].forEach(id => document.getElementById(id).innerHTML = yOpts);
+  ['q-month','ca-month','cb-month','ra-month','rb-month'].forEach(id => document.getElementById(id).innerHTML = mOpts);
+
+  // Defaults
+  document.getElementById('q-year').value = 2026;
+  document.getElementById('q-month').value = 3;
+  document.getElementById('ca-year').value = 2026; document.getElementById('ca-month').value = 3;
+  document.getElementById('cb-year').value = 2025; document.getElementById('cb-month').value = 3;
+  document.getElementById('ra-year').value = 2026; document.getElementById('ra-month').value = 1;
+  document.getElementById('rb-year').value = 2026; document.getElementById('rb-month').value = 3;
+
+  if (sheetId) document.getElementById('sheet-id-input').value = sheetId;
+
+  // Presets
+  const presets = [
+    {icon:'📊',name:'Latest Month',desc:'All products – March 2026',fn:"runPreset('latest')"},
+    {icon:'📈',name:'MoM Growth',desc:'Import vs Feb 2026',fn:"runPreset('mom')"},
+    {icon:'📅',name:'YoY Growth',desc:'Import Mar 26 vs Mar 25',fn:"runPreset('yoy')"},
+    {icon:'🌐',name:'Total Trade',desc:'Full trade volume – latest',fn:"runPreset('trade_total')"},
+    {icon:'⚡',name:'Daily Throughput',desc:'All products per working day',fn:"runPreset('per_day')"},
+    {icon:'🚢',name:'Export Breakdown',desc:'Foreign vs Local – latest',fn:"runPreset('export')"},
+    {icon:'📋',name:'Full Year 2025',desc:'Jan–Dec 2025 summary',fn:"runPreset('fy2025')"},
+    {icon:'🔁',name:'Q1 Compare',desc:'Q1 2026 vs Q1 2025',fn:"runPreset('q1cmp')"},
+  ];
+  document.getElementById('preset-grid').innerHTML = presets.map(p =>
+    `<div class="preset-card" onclick="${p.fn}">
+      <div class="preset-icon">${p.icon}</div>
+      <div class="preset-name">${p.name}</div>
+      <div class="preset-desc">${p.desc}</div>
+    </div>`
+  ).join('');
+}
+
+// ─── OVERVIEW ─────────────────────────────────────────────────────────────────
+function renderOverview() {
+  const latest = DATA.IMPORT[DATA.IMPORT.length-1];
+  if (!latest) return;
+  const ly = latest.y, lm = latest.m;
+  const label = MN[lm]+' '+ly;
+  document.getElementById('latest-label').textContent = label;
+  document.getElementById('data-period').textContent = 'Jan 2024 – '+label;
+
+  const ir = getRow(DATA.IMPORT,ly,lm);
+  const er = getRow(DATA.EXPORT,ly,lm);
+  const br = getRow(DATA.BG,ly,lm);
+  const pm = prevM(ly,lm);
+  const irP = getRow(DATA.IMPORT,pm.y,pm.m);
+
+  // KPIs
+  const kpis = [
+    {label:'Import Txn',val:fmtI(ir?.total),sub:'transactions',
+     chg:pct(ir?.total,irP?.total),ac:'#388bfd'},
+    {label:'Import Value',val:'$'+fmt(ir?.usd)+'M',sub:'USD Million',
+     chg:pct(ir?.usd,irP?.usd),ac:'#6e40c9'},
+    {label:'Export Bills',val:fmtI(er?.total),sub:'bills',chg:null,ac:'#3fb950'},
+    {label:'Export Value',val:'$'+fmt(er?.usd)+'M',sub:'USD Million',chg:null,ac:'#1f9f6e'},
+    {label:'Bank Guar.',val:fmtI(br?.n),sub:'count',chg:null,ac:'#d29922'},
+    {label:'BG Value',val:'$'+fmt(br?.usd)+'M',sub:'USD Million',chg:null,ac:'#c25f2f'},
+    {label:'Imp/Day',val:fmt(ir?.total/ir?.wd),sub:'txn per day',chg:null,ac:'#8957e5'},
+  ];
+  document.getElementById('kpi-row').innerHTML = kpis.map(k =>
+    `<div class="kpi-card" style="--ac:${k.ac}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-val">${k.val}</div>
+      <div class="kpi-sub">${k.sub}</div>
+      ${k.chg!==null?`<div class="kpi-change ${k.chg>=0?'up':'down'}">${k.chg>=0?'▲':'▼'} ${Math.abs(k.chg).toFixed(1)}% MoM</div>`:''}
+    </div>`
+  ).join('');
+
+  // Overview rows
+  const segs = [
+    {name:'Import',sub:'BTB + Cash + Amd + TT',dot:'#388bfd',count:ir?.total,value:ir?.usd,prevC:irP?.total,prevV:irP?.usd},
+    {name:'Export Total',sub:'Foreign + Local',dot:'#3fb950',count:er?.total,value:er?.usd,prevC:null,prevV:null},
+    {name:'Foreign Export',sub:'Foreign bills',dot:'#1f9f6e',count:er?.fb,value:er?.fusd,prevC:null,prevV:null},
+    {name:'Local Export',sub:'Local bills',dot:'#06ccb0',count:er?.lb,value:er?.lusd,prevC:null,prevV:null},
+    {name:'Bank Guarantee',sub:'All BGs',dot:'#d29922',count:br?.n,value:br?.usd,prevC:null,prevV:null},
+  ];
+  document.getElementById('overview-rows').innerHTML = segs.map(s => {
+    const chg = pct(s.value, s.prevV);
+    return `<div class="overview-row">
+      <div class="ov-left">
+        <div class="ov-dot" style="background:${s.dot}"></div>
+        <div><div class="ov-name">${s.name}</div><div class="ov-sub">${s.sub}</div></div>
+      </div>
+      <div class="ov-right">
+        <div class="ov-val">$${fmt(s.value)}M</div>
+        <div class="ov-chg">${chg!==null?pillHtml(chg):`<span style="color:#8b949e;font-size:.62rem">${fmtI(s.count)} txn</span>`}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Trend chart
+  const last12 = DATA.IMPORT.slice(-12);
+  if (activeChart) { activeChart.destroy(); activeChart = null; }
+  const ctx = document.getElementById('trend-chart');
+  if (ctx) {
+    activeChart = new Chart(ctx, {
+      type:'line',
+      data:{
+        labels: last12.map(d=>MN[d.m]),
+        datasets:[{
+          label:'Import USD Mn',
+          data:last12.map(d=>d.usd),
+          borderColor:'#388bfd',backgroundColor:'#1f6feb18',
+          fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#388bfd'
+        },{
+          label:'Export USD Mn',
+          data:last12.map(d=>{const e=getRow(DATA.EXPORT,d.y,d.m);return e?.usd||null}),
+          borderColor:'#3fb950',backgroundColor:'#2ea04318',
+          fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#3fb950'
+        }]
+      },
+      options:{
+        responsive:true,
+        plugins:{legend:{labels:{color:'#8b949e',font:{size:10},boxWidth:10}}},
+        scales:{
+          x:{ticks:{color:'#8b949e',font:{size:9}},grid:{color:'#1c2128'}},
+          y:{ticks:{color:'#8b949e',font:{size:9}},grid:{color:'#1c2128'}}
+        }
+      }
+    });
+  }
+}
+
+// ─── QUERY ────────────────────────────────────────────────────────────────────
+function runQuery() {
+  const {mode, product, growth} = qState;
+  if (mode === 'point') {
+    const y = document.getElementById('q-year').value;
+    const m = document.getElementById('q-month').value;
+    renderPoint(product, y, m, growth);
+  } else if (mode === 'compare') {
+    renderCompare(product,
+      document.getElementById('ca-year').value, document.getElementById('ca-month').value,
+      document.getElementById('cb-year').value, document.getElementById('cb-month').value
+    );
+  } else {
+    renderRange(product,
+      document.getElementById('ra-year').value, document.getElementById('ra-month').value,
+      document.getElementById('rb-year').value, document.getElementById('rb-month').value
+    );
+  }
+}
+
+function renderPoint(prod, y, m, growth) {
+  const cur = getData(prod,y,m);
+  const pm = prevM(y,m), py = prevY(y,m);
+  const mom = getData(prod,pm.y,pm.m);
+  const yoy = getData(prod,py.y,py.m);
+  const momC = pct(cur.count,mom.count), momV = pct(cur.value,mom.value);
+  const yoyC = pct(cur.count,yoy.count), yoyV = pct(cur.value,yoy.value);
+
+  let html = `<div class="result-card hl">
+    <div class="result-header">
+      <div class="result-prod">${prodLabel(prod)}</div>
+      <div class="result-period">${MN[+m]} ${y}</div>
+    </div>`;
+
+  if (growth !== 'none') {
+    html += `<div class="growth-badges">`;
+    if (growth==='mom'||growth==='both') html += `<div class="gbadge">
+      <div class="gbadge-label">vs ${MN[pm.m]} ${pm.y}</div>
+      <div class="gbadge-vals">${pillHtml(momV)} value &nbsp; ${pillHtml(momC)} txn</div>
+    </div>`;
+    if (growth==='yoy'||growth==='both') html += `<div class="gbadge">
+      <div class="gbadge-label">vs ${MN[+m]} ${py.y}</div>
+      <div class="gbadge-vals">${pillHtml(yoyV)} value &nbsp; ${pillHtml(yoyC)} txn</div>
+    </div>`;
+    html += `</div>`;
+  }
+
+  html += `<div class="mini-grid">
+    <div class="mini-box" style="--ac:#388bfd">
+      <div class="mini-name">Transactions</div>
+      <div class="mini-val">${fmtI(cur.count)}</div>
+      <div class="mini-unit">count</div>
+    </div>
+    <div class="mini-box" style="--ac:#3fb950">
+      <div class="mini-name">Value USD Mn</div>
+      <div class="mini-val">${fmt(cur.value)}</div>
+      <div class="mini-unit">million</div>
+    </div>
+    <div class="mini-box" style="--ac:#8957e5">
+      <div class="mini-name">Txn / Day</div>
+      <div class="mini-val">${fmt(cur.count/cur.wd)}</div>
+      <div class="mini-unit">${cur.wd} working days</div>
+    </div>
+    <div class="mini-box" style="--ac:#d29922">
+      <div class="mini-name">Value / Day</div>
+      <div class="mini-val">${fmt(cur.value/cur.wd)}</div>
+      <div class="mini-unit">USD Mn per day</div>
+    </div>
+  </div>`;
+
+  // Breakdown tables
+  if (prod === 'import_total') {
+    const r = getRow(DATA.IMPORT,y,m);
+    if (r) html += breakdownTable(['BTB LC','Cash LC','Amendment','TT-CAD'],
+      [[r.btb,r.btbv],[r.cash,r.cashv],[r.amd,r.amdv],[r.tt,r.ttv]],[r.total,r.usd],r.wd);
+  }
+  if (prod === 'export_total') {
+    const r = getRow(DATA.EXPORT,y,m);
+    if (r) html += breakdownTable(['Foreign Export','Local Export'],
+      [[r.fb,r.fusd],[r.lb,r.lusd]],[r.total,r.usd],r.wd);
+  }
+  if (prod === 'trade_total') {
+    const ir=getRow(DATA.IMPORT,y,m),er=getRow(DATA.EXPORT,y,m),br=getRow(DATA.BG,y,m);
+    if(ir&&er&&br) html += breakdownTable(['Import','Export','Bank Guarantee'],
+      [[ir.total,ir.usd],[er.total,er.usd],[br.n,br.usd]],
+      [ir.total+er.total+br.n,ir.usd+er.usd+br.usd],ir.wd);
+  }
+
+  html += '</div>';
+  document.getElementById('result-area').innerHTML = html;
+  showPage('query', document.querySelector('.nav-tab:nth-child(2)'));
+}
+
+function breakdownTable(labels, rows, totals, wd) {
+  return `<div class="tbl-wrap"><table>
+    <thead><tr><th>Product</th><th>Txn</th><th>Txn/Day</th><th>USD Mn</th></tr></thead>
+    <tbody>
+    ${rows.map((r,i)=>`<tr><td>${labels[i]}</td><td>${fmtI(r[0])}</td><td>${fmt(r[0]/wd)}</td><td>${fmt(r[1])}</td></tr>`).join('')}
+    <tr><td><b>Total</b></td><td><b>${fmtI(totals[0])}</b></td><td><b>${fmt(totals[0]/wd)}</b></td><td><b>${fmt(totals[1])}</b></td></tr>
+    </tbody>
+  </table></div>`;
+}
+
+function renderCompare(prod, ya, ma, yb, mb) {
+  const a = getData(prod,ya,ma), b = getData(prod,yb,mb);
+  const cntChg = pct(a.count,b.count), valChg = pct(a.value,b.value);
+  let html = `<div class="result-card hl">
+    <div class="result-prod">${prodLabel(prod)} — Comparison</div>
+    <div class="result-period">${MN[+ma]} ${ya} vs ${MN[+mb]} ${yb}</div>
+    <div class="tbl-wrap" style="margin-top:10px"><table>
+      <thead><tr><th>Metric</th><th>${MN[+ma]} ${ya}</th><th>${MN[+mb]} ${yb}</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td>Transactions</td><td>${fmtI(a.count)}</td><td>${fmtI(b.count)}</td><td>${pillHtml(cntChg)}</td></tr>
+        <tr><td>Txn/Day</td><td>${fmt(a.count/a.wd)}</td><td>${fmt(b.count/b.wd)}</td><td>${pillHtml(pct(a.count/a.wd,b.count/b.wd))}</td></tr>
+        <tr><td>Value USD Mn</td><td>${fmt(a.value)}</td><td>${fmt(b.value)}</td><td>${pillHtml(valChg)}</td></tr>
+        <tr><td>Val/Day</td><td>${fmt(a.value/a.wd)}</td><td>${fmt(b.value/b.wd)}</td><td>${pillHtml(pct(a.value/a.wd,b.value/b.wd))}</td></tr>
+        <tr><td>Working Days</td><td>${a.wd}</td><td>${b.wd}</td><td>—</td></tr>
+      </tbody>
+    </table></div>
+  </div>`;
+  document.getElementById('result-area').innerHTML = html;
+}
+
+function renderRange(prod, ya, ma, yb, mb) {
+  const allImp = DATA.IMPORT.filter(d=>{const ts=d.y*100+d.m,a=+ya*100+ +ma,b=+yb*100+ +mb;return ts>=a&&ts<=b});
+  let counts=[],values=[],labels=[],wds=[];
+  allImp.forEach(ir=>{
+    const d = getData(prod,ir.y,ir.m);
+    counts.push(d.count||0); values.push(d.value||0);
+    labels.push(MN[ir.m]+' '+ir.y); wds.push(ir.wd||20);
+  });
+  const totalC=counts.reduce((a,b)=>a+b,0), totalV=values.reduce((a,b)=>a+b,0);
+  const totalWd=wds.reduce((a,b)=>a+b,0);
+
+  let html = `<div class="result-card hl">
+    <div class="result-prod">${prodLabel(prod)} — Range</div>
+    <div class="result-period">${MN[+ma]} ${ya} to ${MN[+mb]} ${yb}</div>
+    <div class="mini-grid" style="margin-top:10px">
+      <div class="mini-box" style="--ac:#388bfd"><div class="mini-name">Total Txn</div><div class="mini-val">${fmtI(totalC)}</div><div class="mini-unit">${labels.length} months</div></div>
+      <div class="mini-box" style="--ac:#3fb950"><div class="mini-name">Total Value</div><div class="mini-val">${fmt(totalV)}</div><div class="mini-unit">USD Million</div></div>
+      <div class="mini-box" style="--ac:#8957e5"><div class="mini-name">Avg/Month</div><div class="mini-val">${fmtI(totalC/labels.length)}</div><div class="mini-unit">transactions</div></div>
+      <div class="mini-box" style="--ac:#d29922"><div class="mini-name">Avg/Day</div><div class="mini-val">${fmt(totalC/totalWd)}</div><div class="mini-unit">across period</div></div>
+    </div>
+  </div>
+  <div class="result-card">
+    <div class="card-title">Monthly Detail</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Period</th><th>Txn</th><th>Txn/Day</th><th>USD Mn</th></tr></thead>
+      <tbody>
+      ${labels.map((l,i)=>`<tr><td>${l}</td><td>${fmtI(counts[i])}</td><td>${fmt(counts[i]/wds[i])}</td><td>${fmt(values[i])}</td></tr>`).join('')}
+      <tr><td><b>Total</b></td><td><b>${fmtI(totalC)}</b></td><td><b>${fmt(totalC/totalWd)}</b></td><td><b>${fmt(totalV)}</b></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <div class="chart-wrap"><canvas id="range-chart"></canvas></div>`;
+  document.getElementById('result-area').innerHTML = html;
+
+  new Chart(document.getElementById('range-chart'),{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Txn',data:counts,borderColor:'#388bfd',backgroundColor:'#1f6feb18',fill:true,tension:.35,pointRadius:3,yAxisID:'y'},
+      {label:'USD Mn',data:values,borderColor:'#3fb950',backgroundColor:'#2ea04318',fill:true,tension:.35,pointRadius:3,yAxisID:'y1'},
+    ]},
+    options:{responsive:true,
+      plugins:{legend:{labels:{color:'#8b949e',font:{size:9},boxWidth:8}}},
+      scales:{
+        x:{ticks:{color:'#8b949e',font:{size:8},maxRotation:45},grid:{color:'#1c2128'}},
+        y:{ticks:{color:'#8b949e',font:{size:9}},grid:{color:'#1c2128'},position:'left'},
+        y1:{ticks:{color:'#8b949e',font:{size:9}},grid:{drawOnChartArea:false},position:'right'},
+      }}
+  });
+}
+
+// ─── PRESETS ──────────────────────────────────────────────────────────────────
+function runPreset(key) {
+  showPage('query', document.querySelector('.nav-tab:nth-child(2)'));
+  if (key==='latest') { setProd('trade_total'); setMode('point'); renderPoint('trade_total',2026,3,'both'); }
+  else if (key==='mom') { setProd('import_total'); setMode('point'); renderPoint('import_total',2026,3,'mom'); }
+  else if (key==='yoy') { setProd('import_total'); setMode('point'); renderPoint('import_total',2026,3,'yoy'); }
+  else if (key==='trade_total') { setProd('trade_total'); setMode('point'); renderPoint('trade_total',2026,3,'both'); }
+  else if (key==='per_day') { renderPerDay(2026,3); }
+  else if (key==='export') { setProd('export_total'); setMode('point'); renderPoint('export_total',2026,3,'both'); }
+  else if (key==='fy2025') { setProd('trade_total'); setMode('range'); document.getElementById('ra-year').value=2025; document.getElementById('ra-month').value=1; document.getElementById('rb-year').value=2025; document.getElementById('rb-month').value=12; renderRange('trade_total',2025,1,2025,12); }
+  else if (key==='q1cmp') { setProd('import_total'); setMode('compare'); renderCompare('import_total',2026,3,2025,3); }
+}
+
+function renderPerDay(y,m) {
+  const prods = [
+    {k:'import_total',l:'Import Total'},{k:'btb_lc',l:'BTB LC'},{k:'cash_lc',l:'Cash LC'},
+    {k:'amendment',l:'Amendment'},{k:'tt_cad',l:'TT-CAD'},{k:'export_total',l:'Export Total'},
+    {k:'foreign_export',l:'Foreign'},{k:'local_export',l:'Local Exp'},{k:'bg',l:'Bank Guar.'},
+  ];
+  const rows = prods.map(p=>{const d=getData(p.k,y,m);return{...p,tpd:d.count/d.wd,vpd:d.value/d.wd,wd:d.wd}});
+  document.getElementById('result-area').innerHTML = `<div class="result-card hl">
+    <div class="result-prod">Daily Throughput — All Products</div>
+    <div class="result-period">${MN[m]} ${y}</div>
+    <div class="tbl-wrap" style="margin-top:10px"><table>
+      <thead><tr><th>Product</th><th>Txn/Day</th><th>Val/Day</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td>${r.l}</td><td>${fmt(r.tpd)}</td><td>${fmt(r.vpd)}</td></tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+// ─── SETTINGS ─────────────────────────────────────────────────────────────────
+function saveSettings() {
+  const id = document.getElementById('sheet-id-input').value.trim();
+  if (!id) return alert('Please enter a Sheet ID');
+  localStorage.setItem('tradeSheetId', id);
+  sheetId = id;
+  fetchSheetData(id).then(()=>renderOverview());
+}
+
+async function syncData() {
+  if (!sheetId) { showPage('settings', document.querySelector('.nav-tab:nth-child(4)')); return; }
+  await fetchSheetData(sheetId);
+}
+
+// ─── NAV ─────────────────────────────────────────────────────────────────────
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+function setMode(mode, el) {
+  qState.mode = mode;
+  document.querySelectorAll('.mode-pill').forEach(p=>p.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('q-single').style.display = mode==='point'?'':'none';
+  document.getElementById('q-compare').style.display = mode==='compare'?'':'none';
+  document.getElementById('q-range').style.display = mode==='range'?'':'none';
+}
+
+function setProd(prod, el) {
+  qState.product = prod;
+  document.querySelectorAll('.prod-btn').forEach(b=>b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  else { const b=document.querySelector(`[data-prod="${prod}"]`); if(b){b.classList.add('active');} }
+}
+
+function setGrowth(g, el) {
+  qState.growth = g;
+  document.querySelectorAll('.g-btn').forEach(b=>b.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+function showError(msg) {
+  const b = document.getElementById('error-banner');
+  b.textContent = msg; b.style.display = '';
+  setTimeout(()=>b.style.display='none', 5000);
+}
+
+init();
+</script>
+</body>
+</html>
