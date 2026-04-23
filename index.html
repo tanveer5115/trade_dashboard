@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -582,10 +583,25 @@ async function fetchSheetData(id) {
 
 function parseSheetCSV(impCSV, expCSV, bgCSV) {
   function parseCSV(csv) {
-    return csv.split('\n').slice(1).filter(Boolean).map(line => {
-      const cols = line.match(/(".*?"|[^,]+)(?=,|$)/g) || [];
-      return cols.map(c => c.replace(/^"|"$/g,'').trim());
-    }).filter(r => r.length > 2 && r[0] && !isNaN(r[0]));
+    // Parse CSV: strip commas from numbers, skip non-data rows
+    return csv.split('\n').filter(Boolean).map(line => {
+      const cols = [];
+      let cur = '', inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        if (line[i] === '"') { inQ = !inQ; }
+        else if (line[i] === ',' && !inQ) { cols.push(cur.trim().replace(/,/g,'')); cur = ''; }
+        else { cur += line[i]; }
+      }
+      cols.push(cur.trim().replace(/,/g,''));
+      return cols;
+    }).filter(r => {
+      // keep rows where any cell matches a year 2024-2030
+      return r.some(c => /^20[2-9]\d$/.test(c));
+    }).map(r => {
+      // normalize: find year cell and reorder from there
+      const yi = r.findIndex(c => /^20[2-9]\d$/.test(c));
+      return yi > 0 ? r.slice(yi) : r;
+    });
   }
   const irows = parseCSV(impCSV);
   const erows = parseCSV(expCSV);
@@ -593,20 +609,22 @@ function parseSheetCSV(impCSV, expCSV, bgCSV) {
 
   if (irows.length) {
     DATA.IMPORT = irows.map(r => {
-      const y=+r[0], mn=MN_FULL.indexOf(r[1].toUpperCase()), wd=+r[2];
+      const y=+r[0], mn=MN_FULL.indexOf((r[1]||'').toUpperCase()), wd=+r[2];
       const btb=+r[3],btbv=+r[4],cash=+r[5],cashv=+r[6],amd=+r[7],amdv=+r[8],tt=+r[9],ttv=+r[10];
       return {y,m:mn,wd,btb,btbv,cash,cashv,amd,amdv,tt,ttv,total:btb+cash+amd+tt,usd:btbv+cashv+amdv+ttv};
-    });
+    }).filter(r => r.y > 2000 && r.m > 0);
   }
   if (erows.length) {
     DATA.EXPORT = erows.map(r => {
-      const y=+r[0],mn=MN_FULL.indexOf(r[1].toUpperCase()),wd=+r[2];
+      const y=+r[0],mn=MN_FULL.indexOf((r[1]||'').toUpperCase()),wd=+r[2];
       const fb=+r[3],fusd=+r[4],lb=+r[5],lusd=+r[6];
       return {y,m:mn,wd,fb,fusd,lb,lusd,total:fb+lb,usd:fusd+lusd};
-    });
+    }).filter(r => r.y > 2000 && r.m > 0);
   }
   if (brows.length) {
-    DATA.BG = brows.map(r => ({y:+r[0],m:MN_FULL.indexOf(r[1].toUpperCase()),wd:+r[2],n:+r[3],usd:+r[4]}));
+    DATA.BG = brows.map(r => ({
+      y:+r[0],m:MN_FULL.indexOf((r[1]||'').toUpperCase()),wd:+r[2],n:+r[3],usd:+r[4]
+    })).filter(r => r.y > 2000 && r.m > 0);
   }
   document.getElementById('info-records').textContent = DATA.IMPORT.length;
   renderOverview();
